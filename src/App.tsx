@@ -15,6 +15,7 @@ import Login from './components/Login';
 import { AnimatePresence, motion } from 'motion/react';
 import { handleFirestoreError, OperationType, testConnection } from './firebase-utils';
 import ErrorBoundary from './components/ErrorBoundary';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 import Logo from './components/Logo';
 
@@ -149,6 +150,7 @@ export default function App() {
           <RunTracker user={user} onClose={() => setIsTracking(false)} />
         )}
       </AnimatePresence>
+      <SpeedInsights />
     </ErrorBoundary>
   );
 }
