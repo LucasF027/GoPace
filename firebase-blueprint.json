@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with gamification and social data.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "profile_image": { "type": "string" },
+        "role": { "type": "string", "enum": ["Usuario", "UserPro", "Patrocinador", "Admin", "Ghost"] },
+        "bio": { "type": "string" },
+        "xp_total": { "type": "number" },
+        "level": { "type": "number" },
+        "current_streak": { "type": "number" },
+        "last_run_date": { "type": "string", "format": "date-time" },
+        "total_km": { "type": "number" },
+        "city": { "type": "string" }
+      },
+      "required": ["name", "role", "xp_total", "level"]
+    },
+    "Run": {
+      "title": "Run",
+      "description": "A recorded running activity.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "distance": { "type": "number" },
+        "duration": { "type": "number" },
+        "pace": { "type": "number" },
+        "route": { "type": "array", "items": { "type": "object" } },
+        "created_at": { "type": "string", "format": "date-time" },
+        "user_name": { "type": "string" },
+        "user_image": { "type": "string" }
+      },
+      "required": ["user_id", "distance", "duration", "created_at"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "A running event organized by a sponsor or admin.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" },
+        "location": { "type": "string" },
+        "date_time": { "type": "string", "format": "date-time" },
+        "created_by": { "type": "string" },
+        "participant_count": { "type": "number" }
+      },
+      "required": ["title", "description", "location", "date_time", "created_by"]
+    },
+    "Ad": {
+      "title": "Ad",
+      "description": "An advertisement banner.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "image_url": { "type": "string" },
+        "link": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["title", "image_url", "active"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/runs/{runId}": { "schema": "Run", "description": "Running activities" },
+    "/events/{eventId}": { "schema": "Event", "description": "Running events" },
+    "/events/{eventId}/participants/{userId}": { "schema": "object", "description": "Event participants" },
+    "/ads/{adId}": { "schema": "Ad", "description": "Advertisements" },
+    "/users/{userId}/medals/{medalId}": { "schema": "object", "description": "User medals" }
+  }
+}
