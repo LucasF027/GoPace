@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, where, Timestamp } from 'firebase/firestore';
 import { UserProfile, Run } from '../types';
 import { cn, getCategory, Category } from '../utils';
+import UserAvatar from './UserAvatar';
 import { handleFirestoreError, OperationType } from '../firebase-utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { subDays, startOfMonth, startOfYear, isAfter } from 'date-fns';
@@ -204,14 +205,12 @@ export default function Ranking({ currentUser }: RankingProps) {
               className="flex flex-col items-center gap-3"
             >
               <div className="relative">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-zinc-800 border-2 border-zinc-400 overflow-hidden p-0.5 shadow-lg">
-                  {topThree[1].user.profile_image ? (
-                    <img src={topThree[1].user.profile_image} alt={topThree[1].user.name} className="w-full h-full rounded-2xl object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-zinc-500 font-bold bg-zinc-900 rounded-2xl">{topThree[1].user.name[0]}</div>
-                  )}
-                </div>
-                <div className="absolute -top-2 -right-2 bg-zinc-400 text-black w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black border-2 border-speed-black shadow-xl">2</div>
+                <UserAvatar 
+                  user={topThree[1].user} 
+                  size="lg" 
+                  className="ring-2 ring-zinc-400"
+                />
+                <div className="absolute -top-2 -right-2 bg-zinc-400 text-black w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black border-2 border-speed-black shadow-xl z-20">2</div>
                 <Medal className="absolute -bottom-2 -left-2 w-6 h-6 text-zinc-400 drop-shadow-lg" />
               </div>
               <div className="text-center w-full">
@@ -235,15 +234,12 @@ export default function Ranking({ currentUser }: RankingProps) {
               className="flex flex-col items-center gap-3 -mt-12"
             >
               <div className="relative">
-                <Crown className="w-10 h-10 text-neon-green absolute -top-10 left-1/2 -translate-x-1/2 neon-glow animate-bounce" />
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-zinc-800 border-4 border-neon-green overflow-hidden p-1 shadow-[0_0_40px_rgba(57,255,20,0.4)]">
-                  {topThree[0].user.profile_image ? (
-                    <img src={topThree[0].user.profile_image} alt={topThree[0].user.name} className="w-full h-full rounded-2xl object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-zinc-500 font-bold bg-zinc-900 rounded-2xl">{topThree[0].user.name[0]}</div>
-                  )}
-                </div>
-                <div className="absolute -top-2 -right-2 bg-neon-green text-black w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black border-4 border-speed-black shadow-2xl">1</div>
+                <UserAvatar 
+                  user={topThree[0].user} 
+                  size="lg" 
+                  className="scale-110 ring-4 ring-neon-green/30"
+                />
+                <div className="absolute -top-2 -right-2 bg-neon-green text-black w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black border-4 border-speed-black shadow-2xl z-20">1</div>
                 <Trophy className="absolute -bottom-3 -left-3 w-8 h-8 text-neon-green drop-shadow-[0_0_10px_rgba(57,255,20,0.5)]" />
               </div>
               <div className="text-center w-full">
@@ -267,14 +263,12 @@ export default function Ranking({ currentUser }: RankingProps) {
               className="flex flex-col items-center gap-3"
             >
               <div className="relative">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-zinc-800 border-2 border-vibrant-orange overflow-hidden p-0.5 shadow-lg">
-                  {topThree[2].user.profile_image ? (
-                    <img src={topThree[2].user.profile_image} alt={topThree[2].user.name} className="w-full h-full rounded-2xl object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-zinc-500 font-bold bg-zinc-900 rounded-2xl">{topThree[2].user.name[0]}</div>
-                  )}
-                </div>
-                <div className="absolute -top-2 -right-2 bg-vibrant-orange text-black w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black border-2 border-speed-black shadow-xl">3</div>
+                <UserAvatar 
+                  user={topThree[2].user} 
+                  size="lg" 
+                  className="ring-2 ring-vibrant-orange"
+                />
+                <div className="absolute -top-2 -right-2 bg-vibrant-orange text-black w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black border-2 border-speed-black shadow-xl z-20">3</div>
                 <Medal className="absolute -bottom-2 -left-2 w-6 h-6 text-vibrant-orange drop-shadow-lg" />
               </div>
               <div className="text-center w-full">
@@ -320,13 +314,10 @@ export default function Ranking({ currentUser }: RankingProps) {
                   #{entry.position}
                 </div>
                 
-                <div className="w-12 h-12 rounded-2xl bg-zinc-800 overflow-hidden border border-white/10 p-0.5 group-hover:border-neon-green/50 transition-all">
-                  {entry.user.profile_image ? (
-                    <img src={entry.user.profile_image} alt={entry.user.name} className="w-full h-full rounded-2xl object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-zinc-500 font-bold bg-zinc-900 rounded-2xl">{entry.user.name[0]}</div>
-                  )}
-                </div>
+                <UserAvatar 
+                  user={entry.user} 
+                  size="md" 
+                />
 
                 <div className="flex-1 min-w-0">
                   <div className="font-display font-bold text-sm truncate flex items-center gap-2 text-white uppercase tracking-tight">
@@ -375,13 +366,10 @@ export default function Ranking({ currentUser }: RankingProps) {
             <div className="w-10 text-center font-display font-black italic text-black/50">
               #{userEntry.position}
             </div>
-            <div className="w-10 h-10 rounded-xl bg-black/10 overflow-hidden border border-black/10">
-              {currentUser.profile_image ? (
-                <img src={currentUser.profile_image} alt={currentUser.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-black font-bold">{currentUser.name[0]}</div>
-              )}
-            </div>
+            <UserAvatar 
+              user={currentUser} 
+              size="md" 
+            />
             <div className="flex-1">
               <div className="font-display font-black italic text-sm uppercase tracking-tight">Sua Posição</div>
               <div className="text-[10px] font-mono font-bold uppercase tracking-widest opacity-70">Continue correndo para subir!</div>

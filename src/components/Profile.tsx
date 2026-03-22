@@ -8,6 +8,7 @@ import {
   Award,
   History,
   Grid,
+  Image,
   X,
   Save,
   TrendingUp,
@@ -23,6 +24,7 @@ import { UserProfile, Run, Medal } from '../types';
 import { cn, formatDuration, formatPace, calculatePace, safeToDate } from '../utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import UserAvatar from './UserAvatar';
 import { handleFirestoreError, OperationType } from '../firebase-utils';
 import { ArrowLeft } from 'lucide-react';
 import UserCategory from './UserCategory';
@@ -304,14 +306,11 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
 
         <div className="px-8 -mt-16 flex flex-col items-center text-center relative z-10">
           <div className="relative group">
-            <div className="w-32 h-32 rounded-[2.5rem] bg-speed-black border-4 border-speed-black overflow-hidden shadow-[0_0_30px_rgba(57,255,20,0.3)] relative neon-card-glow">
-              <div className="absolute inset-0 border-2 border-neon-green/30 rounded-[2.5rem] z-10 pointer-events-none" />
-              {profileUser.profile_image ? (
-                <img src={profileUser.profile_image} alt={profileUser.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-zinc-700 font-display font-black text-4xl bg-zinc-900">{profileUser.name[0]}</div>
-              )}
-            </div>
+            <UserAvatar 
+              user={profileUser} 
+              size="xl" 
+              className="ring-4 ring-speed-black bg-speed-black shadow-[0_0_30px_rgba(57,255,20,0.3)]"
+            />
             <div className="absolute -bottom-2 -right-2 bg-neon-green text-black p-2 rounded-xl shadow-lg border-2 border-speed-black">
               <Zap className="w-4 h-4 fill-current" />
             </div>
@@ -577,60 +576,52 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
                     </button>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-zinc-500 ml-4">Foto de Perfil</label>
-                  
-                  <div className="flex flex-col gap-3 px-4">
-                    <div className="flex items-center gap-4 mb-2">
-                      <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-white/10 overflow-hidden flex-shrink-0">
-                        {isUploading ? (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <div className="w-6 h-6 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
-                          </div>
-                        ) : editForm.profile_image ? (
-                          <img src={editForm.profile_image} alt="Preview" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-zinc-700">
-                            <Camera className="w-6 h-6" />
-                          </div>
-                        )}
+                <div className="flex flex-col items-center gap-8">
+                  <div className="relative">
+                    <UserAvatar 
+                      user={{ ...profileUser, profile_image: editForm.profile_image }} 
+                      size="xl" 
+                      className="ring-4 ring-neon-green/20"
+                    />
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-black/60 rounded-[2.5rem] flex flex-col items-center justify-center gap-2 z-20">
+                        <div className="w-12 h-12 border-2 border-neon-green/20 border-t-neon-green rounded-full animate-spin" />
+                        <span className="text-[10px] font-mono text-neon-green font-bold">{uploadProgress}%</span>
                       </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-xs font-bold text-white">Sua Identidade Visual</p>
-                        <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">Escolha como outros atletas te verão</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 w-full">
+                    <label className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-neon-green/50 transition-all cursor-pointer group relative overflow-hidden">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="absolute inset-0 opacity-0 cursor-pointer z-10" 
+                        onChange={handleImageUpload}
+                        disabled={isUploading}
+                      />
+                      <div className="p-2 bg-white/5 rounded-xl group-hover:bg-neon-green group-hover:text-black transition-all">
+                        <Image className="w-5 h-5" />
                       </div>
-                    </div>
+                      <span className="text-[9px] font-mono font-black uppercase tracking-widest">Galeria</span>
+                    </label>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-neon-green/50 transition-all cursor-pointer group relative overflow-hidden">
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          className="absolute inset-0 opacity-0 cursor-pointer" 
-                          onChange={handleImageUpload}
-                          disabled={isUploading}
-                        />
-                        <div className="p-2 bg-white/5 rounded-xl group-hover:bg-neon-green group-hover:text-black transition-all">
-                          <Grid className="w-5 h-5" />
-                        </div>
-                        <span className="text-[9px] font-mono font-black uppercase tracking-widest">Galeria</span>
-                      </label>
-
-                      <label className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-neon-green/50 transition-all cursor-pointer group relative overflow-hidden">
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          capture="user" 
-                          className="absolute inset-0 opacity-0 cursor-pointer" 
-                          onChange={handleImageUpload}
-                          disabled={isUploading}
-                        />
-                        <div className="p-2 bg-white/5 rounded-xl group-hover:bg-neon-green group-hover:text-black transition-all">
-                          <Camera className="w-5 h-5" />
-                        </div>
-                        <span className="text-[9px] font-mono font-black uppercase tracking-widest">Câmera</span>
-                      </label>
-                    </div>
+                    <label className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-neon-green/50 transition-all cursor-pointer group relative overflow-hidden">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="user" 
+                        className="absolute inset-0 opacity-0 cursor-pointer z-10" 
+                        onChange={handleImageUpload}
+                        disabled={isUploading}
+                      />
+                      <div className="p-2 bg-white/5 rounded-xl group-hover:bg-neon-green group-hover:text-black transition-all">
+                        <Camera className="w-5 h-5" />
+                      </div>
+                      <span className="text-[9px] font-mono font-black uppercase tracking-widest">Câmera</span>
+                    </label>
+                  </div>
+                </div>
 
                     <div className="space-y-1.5 mt-2">
                       <label className="text-[9px] font-mono font-bold uppercase tracking-widest text-zinc-600 ml-2">Ou cole a URL da imagem</label>
@@ -642,8 +633,6 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
                       />
                     </div>
                   </div>
-                </div>
-              </div>
 
               <button 
                 onClick={handleSave}

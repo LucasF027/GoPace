@@ -18,6 +18,7 @@ import { doc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { cn } from '../utils';
 
+import UserAvatar from './UserAvatar';
 import Logo from './Logo';
 
 interface LayoutProps {
@@ -57,15 +58,12 @@ export default function Layout({ children, activeTab, setActiveTab, user, onStar
 
         <button 
           onClick={() => setActiveTab('profile')}
-          className="w-11 h-11 rounded-2xl bg-zinc-900 overflow-hidden border border-white/10 hover:border-neon-green/50 transition-all active:scale-95"
+          className="hover:scale-105 transition-transform"
         >
-          {user?.profile_image ? (
-            <img src={user.profile_image} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-zinc-500">
-              <User className="w-6 h-6" />
-            </div>
-          )}
+          <UserAvatar 
+            user={user || undefined} 
+            size="md" 
+          />
         </button>
       </header>
 

@@ -18,6 +18,7 @@ import { Run, Comment, UserProfile } from '../types';
 import { formatDuration, formatPace, calculatePace, safeToDate } from '../utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import UserAvatar from './UserAvatar';
 import { handleFirestoreError, OperationType } from '../firebase-utils';
 import { motion, AnimatePresence } from 'motion/react';
 import UserCategory from './UserCategory';
@@ -148,15 +149,12 @@ export default function Feed({ user, onViewProfile }: FeedProps) {
               <div className="flex items-center gap-3">
                 <button 
                   onClick={() => onViewProfile(run.user_id)}
-                  className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden border-2 border-neon-green/30 p-0.5 hover:scale-105 transition-transform"
+                  className="hover:scale-105 transition-transform"
                 >
-                  {run.user_image ? (
-                    <img src={run.user_image} alt={run.user_name} className="w-full h-full rounded-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-zinc-500 font-bold bg-zinc-900 rounded-full">
-                      {run.user_name?.[0]}
-                    </div>
-                  )}
+                  <UserAvatar 
+                    user={{ uid: run.user_id, name: run.user_name, profile_image: run.user_image }} 
+                    size="md" 
+                  />
                 </button>
                 <div>
                   <button 
@@ -503,13 +501,18 @@ export default function Feed({ user, onViewProfile }: FeedProps) {
                     <div className="space-y-4">
                       {viewingRun.comments.map((comment) => (
                         <div key={comment.id} className="flex gap-3">
-                          <div className="w-8 h-8 rounded-full bg-zinc-800 flex-shrink-0 border border-white/10 overflow-hidden">
-                            {comment.user_image ? (
-                              <img src={comment.user_image} alt={comment.user_name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-xs font-bold text-zinc-500">{comment.user_name[0]}</div>
-                            )}
-                          </div>
+                          <button 
+                            onClick={() => {
+                              onViewProfile(comment.user_id);
+                              setViewingRun(null);
+                            }}
+                            className="hover:scale-105 transition-transform"
+                          >
+                            <UserAvatar 
+                              user={{ uid: comment.user_id, name: comment.user_name, profile_image: comment.user_image }} 
+                              size="sm" 
+                            />
+                          </button>
                           <div className="flex-1 space-y-1">
                             <div className="flex items-center justify-between">
                               <button 
