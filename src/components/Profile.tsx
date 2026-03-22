@@ -16,8 +16,9 @@ import {
   Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../firebase';
+import { getFirebaseStorage, db } from '../firebase';
 import { doc, updateDoc, collection, query, where, getDocs, orderBy, getDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { UserProfile, Run, Medal } from '../types';
 import { cn, formatDuration, formatPace, calculatePace } from '../utils';
 import { format } from 'date-fns';
@@ -45,6 +46,8 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
     city: currentUser.city || ''
   });
   const [isLocating, setIsLocating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const isOwnProfile = !targetUserId || targetUserId === currentUser.uid;
@@ -127,6 +130,47 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("handleImageUpload triggered", e.target.files);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Basic validation
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor, selecione um arquivo de imagem válido.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 5MB.');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(10);
+    console.log("Starting image upload process...");
+    try {
+      const storage = getFirebaseStorage();
+      setUploadProgress(30);
+      const filePath = `profiles/${currentUser.uid}/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, filePath);
+      setUploadProgress(50);
+      const snapshot = await uploadBytes(storageRef, file);
+      setUploadProgress(80);
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      setUploadProgress(100);
+      
+      setEditForm(prev => ({ ...prev, profile_image: downloadURL }));
+    } catch (err) {
+      console.error("Error uploading image:", err);
+      alert("Erro ao enviar a imagem. Detalhes: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      e.target.value = '';
+    }
+  };
+
   if (loading) return (
     <div className="flex justify-center p-12">
       <div className="w-12 h-12 border-4 border-neon-green border-t-transparent rounded-full animate-spin neon-glow" />
@@ -164,7 +208,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
 
         <div className="px-8 -mt-16 flex flex-col items-center text-center relative z-10">
           <div className="relative group">
-            <div className="w-32 h-32 rounded-[2.5rem] bg-speed-black border-4 border-speed-black overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative">
+            <div className="w-32 h-32 rounded-[2.5rem] bg-speed-black border-4 border-speed-black overflow-hidden shadow-[0_0_30px_rgba(57,255,20,0.3)] relative neon-card-glow">
               <div className="absolute inset-0 border-2 border-neon-green/30 rounded-[2.5rem] z-10 pointer-events-none" />
               {profileUser.profile_image ? (
                 <img src={profileUser.profile_image} alt={profileUser.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -203,13 +247,13 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
 
       {/* Stats Grid */}
       <div className="grid grid-cols-3 gap-4 px-2">
-        <div className="speed-card p-5 text-center group hover:border-neon-green/30 transition-all">
+        <div className="speed-card p-5 text-center group hover:border-neon-green/30 transition-all neon-card-glow">
           <div className="text-2xl font-display font-black italic tracking-tighter text-neon-green neon-glow group-hover:scale-110 transition-transform">
             {profileUser.total_km.toFixed(1)}
           </div>
           <div className="text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-zinc-500 mt-1">KM TOTAIS</div>
         </div>
-        <div className="speed-card p-5 text-center group hover:border-vibrant-orange/30 transition-all">
+        <div className="speed-card p-5 text-center group hover:border-vibrant-orange/30 transition-all orange-card-glow">
           <div className="flex items-center justify-center gap-1 text-vibrant-orange orange-glow group-hover:scale-110 transition-transform">
             <Flame className="w-5 h-5 fill-current" />
             <span className="text-2xl font-display font-black italic tracking-tighter">{profileUser.current_streak}</span>
@@ -225,7 +269,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
       </div>
 
       {/* XP Progress Bar */}
-      <div className="speed-card p-8 space-y-6 relative overflow-hidden">
+      <div className="speed-card p-8 space-y-6 relative overflow-hidden neon-card-glow">
         <div className="absolute top-0 right-0 p-4 opacity-5">
           <TrendingUp className="w-24 h-24" />
         </div>
@@ -243,7 +287,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
           <motion.div 
             initial={{ width: 0 }}
             animate={{ width: `${(profileUser.xp_total % 1000) / 10}%` }}
-            className="h-full bg-gradient-to-r from-neon-green to-emerald-400 rounded-full relative"
+            className="h-full bg-gradient-to-r from-neon-green to-emerald-400 rounded-full relative shadow-[0_0_15px_rgba(57,255,20,0.5)]"
           >
             <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:20px_20px] animate-[move-bg_1s_linear_infinite]" />
           </motion.div>
@@ -399,14 +443,71 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
                     </button>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-zinc-500 ml-4">URL da Foto de Perfil</label>
-                  <input 
-                    value={editForm.profile_image}
-                    onChange={e => setEditForm({...editForm, profile_image: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:border-neon-green outline-none transition-all"
-                    placeholder="https://..."
-                  />
+                <div className="space-y-3">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-zinc-500 ml-4">Foto de Perfil</label>
+                  
+                  <div className="flex flex-col gap-3 px-4">
+                    <div className="flex items-center gap-4 mb-2">
+                      <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-white/10 overflow-hidden flex-shrink-0">
+                        {isUploading ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="w-6 h-6 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        ) : editForm.profile_image ? (
+                          <img src={editForm.profile_image} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-zinc-700">
+                            <Camera className="w-6 h-6" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-xs font-bold text-white">Sua Identidade Visual</p>
+                        <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">Escolha como outros atletas te verão</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-neon-green/50 transition-all cursor-pointer group relative overflow-hidden">
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="absolute inset-0 opacity-0 cursor-pointer" 
+                          onChange={handleImageUpload}
+                          disabled={isUploading}
+                        />
+                        <div className="p-2 bg-white/5 rounded-xl group-hover:bg-neon-green group-hover:text-black transition-all">
+                          <Grid className="w-5 h-5" />
+                        </div>
+                        <span className="text-[9px] font-mono font-black uppercase tracking-widest">Galeria</span>
+                      </label>
+
+                      <label className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-neon-green/50 transition-all cursor-pointer group relative overflow-hidden">
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          capture="user" 
+                          className="absolute inset-0 opacity-0 cursor-pointer" 
+                          onChange={handleImageUpload}
+                          disabled={isUploading}
+                        />
+                        <div className="p-2 bg-white/5 rounded-xl group-hover:bg-neon-green group-hover:text-black transition-all">
+                          <Camera className="w-5 h-5" />
+                        </div>
+                        <span className="text-[9px] font-mono font-black uppercase tracking-widest">Câmera</span>
+                      </label>
+                    </div>
+
+                    <div className="space-y-1.5 mt-2">
+                      <label className="text-[9px] font-mono font-bold uppercase tracking-widest text-zinc-600 ml-2">Ou cole a URL da imagem</label>
+                      <input 
+                        value={editForm.profile_image}
+                        onChange={e => setEditForm({...editForm, profile_image: e.target.value})}
+                        className="w-full bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-3 text-[10px] focus:border-neon-green outline-none transition-all font-mono"
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 

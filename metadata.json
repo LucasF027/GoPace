@@ -1,5 +1,5 @@
 {
   "name": "GOPace",
   "description": "Aplicativo de corrida com GPS, rede social, eventos e gamificação.",
-  "requestFramePermissions": ["geolocation"]
+  "requestFramePermissions": ["geolocation", "camera"]
 }

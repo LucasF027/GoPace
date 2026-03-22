@@ -44,9 +44,18 @@ service cloud.firestore {
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['name', 'role', 'xp_total', 'level']) &&
+      return data.keys().hasAll(['name', 'role', 'xp_total', 'level', 'city']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.city is string && data.city.size() > 0 && data.city.size() < 100 &&
              data.role in ['Usuario', 'UserPro', 'Patrocinador', 'Admin', 'Ghost'];
+    }
+
+    function isValidRun(data) {
+      return data.keys().hasAll(['user_id', 'distance', 'duration', 'pace', 'created_at']) &&
+             data.user_id is string &&
+             data.distance is number && data.distance >= 0 &&
+             data.duration is number && data.duration >= 0 &&
+             data.pace is number && data.pace >= 0;
     }
 
     // Rules
@@ -65,7 +74,7 @@ service cloud.firestore {
 
     match /runs/{runId} {
       allow read: if isAuthenticated();
-      allow create: if (isAuthenticated() && request.resource.data.user_id == request.auth.uid) || isAdmin();
+      allow create: if ((isAuthenticated() && request.resource.data.user_id == request.auth.uid) || isAdmin()) && isValidRun(request.resource.data);
       allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.user_id == request.auth.uid);
     }
 
