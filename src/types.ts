@@ -13,6 +13,7 @@ export interface UserProfile {
   last_run_date?: string;
   total_km: number;
   city?: string;
+  state?: string;
 }
 
 export interface Run {

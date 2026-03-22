@@ -56,7 +56,8 @@ export default function App() {
               level: 1,
               current_streak: 0,
               total_km: 0,
-              city: 'São Paulo' // Default, user can change in profile
+              city: '', // User must set in profile
+              state: ''
             };
             try {
               await setDoc(userRef, {

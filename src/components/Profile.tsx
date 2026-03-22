@@ -43,8 +43,13 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
     phone: currentUser.phone || '',
     bio: currentUser.bio || '',
     profile_image: currentUser.profile_image || '',
-    city: currentUser.city || ''
+    city: currentUser.city || '',
+    state: currentUser.state || ''
   });
+  const [states, setStates] = useState<{ sigla: string; nome: string }[]>([]);
+  const [cities, setCities] = useState<{ nome: string }[]>([]);
+  const [isFetchingStates, setIsFetchingStates] = useState(false);
+  const [isFetchingCities, setIsFetchingCities] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -71,7 +76,8 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
           phone: targetUser.phone || '',
           bio: targetUser.bio || '',
           profile_image: targetUser.profile_image || '',
-          city: targetUser.city || ''
+          city: targetUser.city || '',
+          state: targetUser.state || ''
         });
 
         const runsQ = query(collection(db, 'runs'), where('user_id', '==', targetUser.uid), orderBy('created_at', 'desc'));
@@ -89,6 +95,46 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
     fetchUserData();
   }, [currentUser, targetUserId]);
 
+  // Fetch states from IBGE
+  useEffect(() => {
+    if (isEditing) {
+      const fetchStates = async () => {
+        setIsFetchingStates(true);
+        try {
+          const response = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome');
+          const data = await response.json();
+          setStates(data.map((s: any) => ({ sigla: s.sigla, nome: s.nome })));
+        } catch (err) {
+          console.error("Error fetching states:", err);
+        } finally {
+          setIsFetchingStates(false);
+        }
+      };
+      fetchStates();
+    }
+  }, [isEditing]);
+
+  // Fetch cities from IBGE when state changes
+  useEffect(() => {
+    if (editForm.state) {
+      const fetchCities = async () => {
+        setIsFetchingCities(true);
+        try {
+          const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${editForm.state}/municipios?orderBy=nome`);
+          const data = await response.json();
+          setCities(data.map((c: any) => ({ nome: c.nome })));
+        } catch (err) {
+          console.error("Error fetching cities:", err);
+        } finally {
+          setIsFetchingCities(false);
+        }
+      };
+      fetchCities();
+    } else {
+      setCities([]);
+    }
+  }, [editForm.state]);
+
   const handleSuggestCity = () => {
     if (!navigator.geolocation) {
       alert("Geolocalização não é suportada pelo seu navegador.");
@@ -101,9 +147,25 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
         const { latitude, longitude } = position.coords;
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
         const data = await response.json();
+        const state = data.address.state || '';
         const city = data.address.city || data.address.town || data.address.village || data.address.suburb || '';
+        
+        // Try to find state abbreviation (UF)
+        let stateUF = '';
+        if (state) {
+          // Simple mapping or just use the state name if we can't find UF
+          // IBGE API uses UF, so we should try to match it
+          const statesResponse = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados');
+          const statesData = await statesResponse.json();
+          const matchedState = statesData.find((s: any) => 
+            s.nome.toLowerCase() === state.toLowerCase() || 
+            s.sigla.toLowerCase() === state.toLowerCase()
+          );
+          if (matchedState) stateUF = matchedState.sigla;
+        }
+
         if (city) {
-          setEditForm(prev => ({ ...prev, city }));
+          setEditForm(prev => ({ ...prev, city, state: stateUF || prev.state }));
         }
       } catch (err) {
         console.error("Error fetching city:", err);
@@ -117,6 +179,10 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
   };
 
   const handleSave = async () => {
+    if (!editForm.state) {
+      alert("O campo estado é obrigatório.");
+      return;
+    }
     if (!editForm.city.trim()) {
       alert("O campo cidade é obrigatório.");
       return;
@@ -420,26 +486,64 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
                     placeholder="Qual sua motivação?"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-zinc-500 ml-4">Cidade</label>
-                  <div className="relative">
-                    <input 
-                      value={editForm.city}
-                      onChange={e => setEditForm({...editForm, city: e.target.value})}
-                      className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:border-neon-green outline-none transition-all pr-12"
-                      placeholder="Sua cidade"
-                    />
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-zinc-500 ml-4">Estado (UF)</label>
+                    <div className="relative">
+                      <select 
+                        value={editForm.state}
+                        onChange={e => setEditForm({...editForm, state: e.target.value, city: ''})}
+                        className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:border-neon-green outline-none transition-all appearance-none"
+                        disabled={isFetchingStates}
+                      >
+                        <option value="">Selecione o Estado</option>
+                        {states.map(s => (
+                          <option key={s.sigla} value={s.sigla}>{s.nome}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
+                        {isFetchingStates ? (
+                          <div className="w-4 h-4 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 rotate-90" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-zinc-500 ml-4">Cidade</label>
+                    <div className="relative">
+                      <select 
+                        value={editForm.city}
+                        onChange={e => setEditForm({...editForm, city: e.target.value})}
+                        className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:border-neon-green outline-none transition-all appearance-none disabled:opacity-50"
+                        disabled={!editForm.state || isFetchingCities}
+                      >
+                        <option value="">{editForm.state ? 'Selecione a Cidade' : 'Selecione um Estado primeiro'}</option>
+                        {cities.map(c => (
+                          <option key={c.nome} value={c.nome}>{c.nome}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
+                        {isFetchingCities ? (
+                          <div className="w-4 h-4 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 rotate-90" />
+                        )}
+                      </div>
+                    </div>
                     <button 
                       onClick={handleSuggestCity}
                       disabled={isLocating}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-white/5 rounded-xl transition-all text-neon-green disabled:opacity-50"
-                      title="Sugerir via GPS"
+                      className="flex items-center gap-2 mt-2 ml-4 text-[10px] font-mono font-bold text-neon-green hover:opacity-80 transition-all disabled:opacity-50"
                     >
                       {isLocating ? (
-                        <div className="w-4 h-4 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+                        <div className="w-3 h-3 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        <MapPin className="w-4 h-4" />
+                        <MapPin className="w-3 h-3" />
                       )}
+                      Sugerir via GPS
                     </button>
                   </div>
                 </div>

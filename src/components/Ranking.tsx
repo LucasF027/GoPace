@@ -140,6 +140,22 @@ export default function Ranking({ currentUser }: RankingProps) {
   const restOfRanking = rankingData.slice(3);
   const userEntry = rankingData.find(e => e.user.uid === currentUser.uid);
 
+  if (!currentUser.city) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center space-y-6">
+        <div className="w-20 h-20 bg-zinc-900 rounded-[2rem] flex items-center justify-center border border-white/5 shadow-xl">
+          <MapPin className="w-10 h-10 text-neon-green animate-pulse" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-xl font-display font-black italic uppercase text-white">Cidade não definida</h3>
+          <p className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest max-w-xs mx-auto">
+            Defina sua cidade no seu perfil para ver o ranking regional e competir com outros atletas locais!
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading && users.length === 0) return (
     <div className="flex justify-center p-12">
       <div className="w-12 h-12 border-4 border-neon-green border-t-transparent rounded-full animate-spin neon-glow" />
