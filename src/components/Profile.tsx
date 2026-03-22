@@ -86,9 +86,9 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
 
         const medalsSnap = await getDocs(collection(db, `users/${targetUser.uid}/medals`));
         setMedals(medalsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Medal)));
-        setLoading(false);
       } catch (err) {
         handleFirestoreError(err, OperationType.LIST, 'user_data');
+      } finally {
         setLoading(false);
       }
     };

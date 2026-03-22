@@ -34,6 +34,8 @@ export default function UserCategory({ userId, className, showIcon = true }: Use
       });
       const avgPace = totalKm > 0 ? (totalTime / 60) / totalKm : 0;
       setStats({ km: totalKm, pace: avgPace });
+    }, (error) => {
+      console.error("Error fetching user category stats:", error);
     });
     return unsubscribe;
   }, [userId]);
