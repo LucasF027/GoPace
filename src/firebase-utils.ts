@@ -55,11 +55,18 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 export async function testConnection() {
   try {
+    console.log("Iniciando teste de conexão com o projeto: gopace-fbcca...");
     // Attempt to get a non-existent doc to test connection
     await getDocFromServer(doc(db, '_connection_test_', 'ping'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. The client is offline.");
+    console.log("Conexão com Firestore estabelecida com sucesso!");
+  } catch (error: any) {
+    const errorMessage = error?.message || String(error);
+    if (errorMessage.includes('the client is offline')) {
+      console.error("ERRO CRÍTICO: O Firestore não está respondendo. Verifique se o 'Firestore Database' está ativo no projeto gopace-fbcca e se o seu computador/servidor tem acesso à internet.");
+    } else if (errorMessage.includes('permission-denied')) {
+      console.log("Conexão OK, mas acesso negado (isso é normal se você ainda não publicou as Regras de Segurança).");
+    } else {
+      console.error("Erro inesperado no teste de conexão:", errorMessage);
     }
   }
 }

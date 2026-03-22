@@ -1,6 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Regra para teste de conexão
+    match /_connection_test_/{docId} {
+      allow read: if true;
+    }
     // ===============================================================
     // Assumed Data Model
     // ===============================================================

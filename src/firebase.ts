@@ -5,7 +5,11 @@ import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Use the named database if provided and not "(default)", otherwise use the default database
+const dbId = (firebaseConfig as any).firestoreDatabaseId;
+export const db = dbId && dbId !== '(default)' && dbId !== ''
+  ? getFirestore(app, dbId)
+  : getFirestore(app);
 export const auth = getAuth(app);
 
 // Lazy initialization for Storage to prevent "Service storage is not available" on startup
