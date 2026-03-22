@@ -41,8 +41,10 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
     name: currentUser.name,
     phone: currentUser.phone || '',
     bio: currentUser.bio || '',
-    profile_image: currentUser.profile_image || ''
+    profile_image: currentUser.profile_image || '',
+    city: currentUser.city || ''
   });
+  const [isLocating, setIsLocating] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const isOwnProfile = !targetUserId || targetUserId === currentUser.uid;
@@ -65,7 +67,8 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
           name: targetUser.name,
           phone: targetUser.phone || '',
           bio: targetUser.bio || '',
-          profile_image: targetUser.profile_image || ''
+          profile_image: targetUser.profile_image || '',
+          city: targetUser.city || ''
         });
 
         const runsQ = query(collection(db, 'runs'), where('user_id', '==', targetUser.uid), orderBy('created_at', 'desc'));
@@ -83,7 +86,38 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
     fetchUserData();
   }, [currentUser, targetUserId]);
 
+  const handleSuggestCity = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocalização não é suportada pelo seu navegador.");
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      try {
+        const { latitude, longitude } = position.coords;
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+        const data = await response.json();
+        const city = data.address.city || data.address.town || data.address.village || data.address.suburb || '';
+        if (city) {
+          setEditForm(prev => ({ ...prev, city }));
+        }
+      } catch (err) {
+        console.error("Error fetching city:", err);
+      } finally {
+        setIsLocating(false);
+      }
+    }, (err) => {
+      console.error("Geolocation error:", err);
+      setIsLocating(false);
+    });
+  };
+
   const handleSave = async () => {
+    if (!editForm.city.trim()) {
+      alert("O campo cidade é obrigatório.");
+      return;
+    }
     try {
       await updateDoc(doc(db, 'users', currentUser.uid), editForm);
       setIsEditing(false);
@@ -151,6 +185,10 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
                   Nível {profileUser.level}
                 </span>
                 <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest font-bold">{profileUser.role}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] font-mono uppercase tracking-widest">
+                <MapPin className="w-3 h-3 text-neon-green" />
+                {profileUser.city || 'Cidade não definida'}
               </div>
               <UserCategory userId={profileUser.uid} className="scale-125 px-4 py-2" />
             </div>
@@ -337,6 +375,29 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
                     className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:border-neon-green outline-none min-h-[100px] transition-all"
                     placeholder="Qual sua motivação?"
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-zinc-500 ml-4">Cidade</label>
+                  <div className="relative">
+                    <input 
+                      value={editForm.city}
+                      onChange={e => setEditForm({...editForm, city: e.target.value})}
+                      className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:border-neon-green outline-none transition-all pr-12"
+                      placeholder="Sua cidade"
+                    />
+                    <button 
+                      onClick={handleSuggestCity}
+                      disabled={isLocating}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-white/5 rounded-xl transition-all text-neon-green disabled:opacity-50"
+                      title="Sugerir via GPS"
+                    >
+                      {isLocating ? (
+                        <div className="w-4 h-4 border-2 border-neon-green border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <MapPin className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-zinc-500 ml-4">URL da Foto de Perfil</label>

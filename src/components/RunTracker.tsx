@@ -170,6 +170,7 @@ export default function RunTracker({ onClose, user }: RunTrackerProps) {
         user_id: user.uid,
         user_name: user.name,
         user_image: user.profile_image || '',
+        user_city: user.city || 'São Paulo',
         distance,
         duration: time,
         pace,

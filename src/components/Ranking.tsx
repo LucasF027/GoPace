@@ -113,6 +113,7 @@ export default function Ranking({ currentUser }: RankingProps) {
     });
 
     const entries: RankingEntry[] = users
+      .filter(user => user.city === currentUser.city)
       .map(user => {
         const mKm = monthlyKmByUser[user.uid] || 0;
         const mTime = monthlyTimeByUser[user.uid] || 0;
@@ -151,7 +152,10 @@ export default function Ranking({ currentUser }: RankingProps) {
       <div className="space-y-6">
         <div>
           <h2 className="text-3xl font-display font-black italic tracking-tighter text-white uppercase">Ranking</h2>
-          <p className="text-xs font-mono text-zinc-500 uppercase tracking-widest mt-1">A elite da velocidade</p>
+          <div className="flex items-center gap-2 mt-1">
+            <MapPin className="w-3 h-3 text-neon-green" />
+            <p className="text-xs font-mono text-zinc-500 uppercase tracking-widest">{currentUser.city || 'Sua Cidade'}</p>
+          </div>
         </div>
 
         <div className="flex bg-zinc-900/50 rounded-2xl p-1 border border-white/5 backdrop-blur-md">
@@ -279,7 +283,7 @@ export default function Ranking({ currentUser }: RankingProps) {
             </span>
           </div>
           <div className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-zinc-500">
-            {rankingData.length} Atletas Ativos
+            {rankingData.length} Atletas em {currentUser.city || 'sua cidade'}
           </div>
         </div>
 
