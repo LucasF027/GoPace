@@ -20,17 +20,23 @@ export default function UserCategory({ userId, className, showIcon = true }: Use
     const start = startOfMonth(now);
     const q = query(
       collection(db, 'runs'),
-      where('user_id', '==', userId),
-      where('created_at', '>=', Timestamp.fromDate(start))
+      where('user_id', '==', userId)
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let totalKm = 0;
       let totalTime = 0;
+      const startTimestamp = Timestamp.fromDate(start).seconds;
+
       snapshot.docs.forEach(doc => {
         const data = doc.data();
-        totalKm += Number(data.distance) || 0;
-        totalTime += Number(data.duration) || 0;
+        const createdAt = data.created_at;
+        
+        // Filter by month in memory to avoid composite index
+        if (createdAt && createdAt.seconds >= startTimestamp) {
+          totalKm += Number(data.distance) || 0;
+          totalTime += Number(data.duration) || 0;
+        }
       });
       const avgPace = totalKm > 0 ? (totalTime / 60) / totalKm : 0;
       setStats({ km: totalKm, pace: avgPace });

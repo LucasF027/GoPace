@@ -64,3 +64,12 @@ export function formatPace(pace: number): string {
   
   return `${pad(m)}:${pad(s)} /km`;
 }
+
+export function safeToDate(timestamp: any): Date {
+  if (!timestamp) return new Date();
+  if (typeof timestamp.toDate === 'function') return timestamp.toDate();
+  if (timestamp instanceof Date) return timestamp;
+  if (typeof timestamp === 'string') return new Date(timestamp);
+  if (timestamp.seconds) return new Date(timestamp.seconds * 1000);
+  return new Date();
+}

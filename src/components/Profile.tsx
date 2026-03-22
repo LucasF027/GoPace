@@ -20,7 +20,7 @@ import { getFirebaseStorage, db } from '../firebase';
 import { doc, updateDoc, collection, query, where, getDocs, orderBy, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { UserProfile, Run, Medal } from '../types';
-import { cn, formatDuration, formatPace, calculatePace } from '../utils';
+import { cn, formatDuration, formatPace, calculatePace, safeToDate } from '../utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../firebase-utils';
@@ -51,6 +51,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
   const [isFetchingStates, setIsFetchingStates] = useState(false);
   const [isFetchingCities, setIsFetchingCities] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -80,9 +81,16 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
           state: targetUser.state || ''
         });
 
-        const runsQ = query(collection(db, 'runs'), where('user_id', '==', targetUser.uid), orderBy('created_at', 'desc'));
+        const runsQ = query(collection(db, 'runs'), where('user_id', '==', targetUser.uid));
         const runsSnap = await getDocs(runsQ);
-        setUserRuns(runsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Run)));
+        const runs = runsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Run));
+        // Sort in memory to avoid composite index
+        const sortedRuns = runs.sort((a, b) => {
+          const dateA = safeToDate(a.created_at).getTime();
+          const dateB = safeToDate(b.created_at).getTime();
+          return dateB - dateA;
+        });
+        setUserRuns(sortedRuns);
 
         const medalsSnap = await getDocs(collection(db, `users/${targetUser.uid}/medals`));
         setMedals(medalsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Medal)));
@@ -187,12 +195,15 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
       alert("O campo cidade é obrigatório.");
       return;
     }
+    setIsSaving(true);
     try {
       await updateDoc(doc(db, 'users', currentUser.uid), editForm);
       setIsEditing(false);
       setProfileUser({ ...profileUser, ...editForm });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -214,22 +225,41 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
 
     setIsUploading(true);
     setUploadProgress(10);
-    console.log("Starting image upload process...");
+    console.log("Iniciando upload da imagem...", file.name, file.size, file.type);
     try {
       const storage = getFirebaseStorage();
+      if (!storage) throw new Error("Firebase Storage não inicializado.");
+      
       setUploadProgress(30);
       const filePath = `profiles/${currentUser.uid}/${Date.now()}_${file.name}`;
+      console.log("Caminho do arquivo no Storage:", filePath);
+      
       const storageRef = ref(storage, filePath);
       setUploadProgress(50);
+      
+      console.log("Enviando bytes...");
       const snapshot = await uploadBytes(storageRef, file);
+      console.log("Upload concluído com sucesso!", snapshot.metadata.fullPath);
+      
       setUploadProgress(80);
       const downloadURL = await getDownloadURL(snapshot.ref);
-      setUploadProgress(100);
+      console.log("URL de download obtida:", downloadURL);
       
+      setUploadProgress(100);
       setEditForm(prev => ({ ...prev, profile_image: downloadURL }));
     } catch (err) {
-      console.error("Error uploading image:", err);
-      alert("Erro ao enviar a imagem. Detalhes: " + (err instanceof Error ? err.message : String(err)));
+      console.error("Erro detalhado no upload da imagem:", err);
+      let errorMessage = "Erro ao enviar a imagem.";
+      if (err instanceof Error) {
+        if (err.message.includes('storage/unauthorized')) {
+          errorMessage = "Erro de permissão: Verifique se as Regras do Firebase Storage permitem o upload.";
+        } else if (err.message.includes('storage/retry-limit-exceeded')) {
+          errorMessage = "Erro de rede: O tempo limite foi excedido. Tente novamente.";
+        } else {
+          errorMessage += " Detalhes: " + err.message;
+        }
+      }
+      alert(errorMessage);
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -413,7 +443,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
                 </div>
                 <div>
                   <div className="text-sm font-display font-black italic text-white uppercase tracking-tight">
-                    {format(run.created_at.toDate(), "dd 'de' MMMM", { locale: ptBR })}
+                    {format(safeToDate(run.created_at), "dd 'de' MMMM", { locale: ptBR })}
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">
@@ -617,10 +647,17 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
 
               <button 
                 onClick={handleSave}
-                className="w-full bg-neon-green text-black font-black uppercase tracking-[0.2em] py-5 rounded-2xl shadow-[0_0_30px_rgba(57,255,20,0.4)] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
+                disabled={isSaving || isUploading}
+                className="w-full bg-neon-green text-black font-black uppercase tracking-[0.2em] py-5 rounded-2xl shadow-[0_0_30px_rgba(57,255,20,0.4)] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:scale-100 disabled:shadow-none"
               >
-                <Save className="w-6 h-6" />
-                Salvar Alterações
+                {isSaving ? (
+                  <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Save className="w-6 h-6" />
+                    Salvar Alterações
+                  </>
+                )}
               </button>
             </motion.div>
           </div>

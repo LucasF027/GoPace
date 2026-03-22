@@ -12,7 +12,7 @@ import { motion } from 'motion/react';
 import { db } from '../firebase';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { UserProfile, Run, Ad } from '../types';
-import { cn, formatPace, calculatePace } from '../utils';
+import { cn, formatPace, calculatePace, safeToDate } from '../utils';
 import { handleFirestoreError, OperationType } from '../firebase-utils';
 
 interface DashboardProps {
@@ -28,12 +28,17 @@ export default function Dashboard({ user, onStartRun, setActiveTab }: DashboardP
   useEffect(() => {
     const runsQ = query(
       collection(db, 'runs'), 
-      where('user_id', '==', user.uid), 
-      orderBy('created_at', 'desc'), 
-      limit(3)
+      where('user_id', '==', user.uid)
     );
     const unsubRuns = onSnapshot(runsQ, (snap) => {
-      setRecentRuns(snap.docs.map(d => ({ id: d.id, ...d.data() } as Run)));
+      const runs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Run));
+      // Sort in memory to avoid composite index
+      const sortedRuns = runs.sort((a, b) => {
+        const dateA = safeToDate(a.created_at).getTime();
+        const dateB = safeToDate(b.created_at).getTime();
+        return dateB - dateA;
+      }).slice(0, 3);
+      setRecentRuns(sortedRuns);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'runs');
     });
@@ -172,7 +177,7 @@ export default function Dashboard({ user, onStartRun, setActiveTab }: DashboardP
                   </div>
                   <div className="flex items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
                     <Calendar className="w-3 h-3" />
-                    {new Date(run.created_at.toDate()).toLocaleDateString('pt-BR')}
+                    {new Date(safeToDate(run.created_at)).toLocaleDateString('pt-BR')}
                   </div>
                 </div>
               </div>

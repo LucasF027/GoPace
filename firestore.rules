@@ -50,7 +50,8 @@ service cloud.firestore {
     function isValidUser(data) {
       return data.keys().hasAll(['name', 'role', 'xp_total', 'level', 'city']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.city is string && data.city.size() > 0 && data.city.size() < 100 &&
+             data.city is string && data.city.size() >= 0 && data.city.size() < 100 &&
+             (!('state' in data) || (data.state is string && data.state.size() >= 0 && data.state.size() <= 2)) &&
              data.role in ['Usuario', 'UserPro', 'Patrocinador', 'Admin', 'Ghost'];
     }
 

@@ -15,7 +15,7 @@ import {
 import { db, auth } from '../firebase';
 import { collection, query, orderBy, onSnapshot, limit, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { Run, Comment, UserProfile } from '../types';
-import { formatDuration, formatPace, calculatePace } from '../utils';
+import { formatDuration, formatPace, calculatePace, safeToDate } from '../utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../firebase-utils';
@@ -169,7 +169,7 @@ export default function Feed({ user, onViewProfile }: FeedProps) {
                     <UserCategory userId={run.user_id} className="px-1 py-0.5 text-[7px]" showIcon={false} />
                     <span className="text-zinc-800">•</span>
                     <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
-                      {run.created_at ? formatDistanceToNow(run.created_at.toDate(), { addSuffix: true, locale: ptBR }) : 'Agora mesmo'}
+                      {run.created_at ? formatDistanceToNow(safeToDate(run.created_at), { addSuffix: true, locale: ptBR }) : 'Agora mesmo'}
                     </div>
                   </div>
                 </div>
@@ -522,7 +522,7 @@ export default function Feed({ user, onViewProfile }: FeedProps) {
                                 {comment.user_name}
                               </button>
                               <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-widest">
-                                {comment.created_at ? formatDistanceToNow(comment.created_at instanceof Date ? comment.created_at : comment.created_at.toDate(), { addSuffix: true, locale: ptBR }) : ''}
+                                {comment.created_at ? formatDistanceToNow(safeToDate(comment.created_at), { addSuffix: true, locale: ptBR }) : ''}
                               </span>
                             </div>
                             <p className="text-sm text-zinc-300 leading-relaxed">{comment.text}</p>
