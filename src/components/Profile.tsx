@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Camera, 
   Edit3, 
@@ -19,7 +19,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { getFirebaseStorage, db } from '../firebase';
 import { doc, updateDoc, collection, query, where, getDocs, orderBy, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { UserProfile, Run, Medal } from '../types';
 import { cn, formatDuration, formatPace, calculatePace, safeToDate } from '../utils';
 import { format } from 'date-fns';
@@ -57,6 +57,8 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [loading, setLoading] = useState(true);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const isOwnProfile = !targetUserId || targetUserId === currentUser.uid;
 
@@ -184,6 +186,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
       }
     }, (err) => {
       console.error("Geolocation error:", err);
+      alert("Não foi possível obter sua localização. Verifique as permissões de geolocalização do seu navegador.");
       setIsLocating(false);
     });
   };
@@ -210,9 +213,12 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log("handleImageUpload triggered", e.target.files);
+    console.log("handleImageUpload triggered - Files:", e.target.files?.length);
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log("No file selected or selection cancelled");
+      return;
+    }
 
     // Basic validation
     if (!file.type.startsWith('image/')) {
@@ -226,29 +232,44 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
     }
 
     setIsUploading(true);
-    setUploadProgress(10);
+    setUploadProgress(0);
     console.log("Iniciando upload da imagem...", file.name, file.size, file.type);
     try {
       const storage = getFirebaseStorage();
       if (!storage) throw new Error("Firebase Storage não inicializado.");
       
-      setUploadProgress(30);
       const filePath = `profiles/${currentUser.uid}/${Date.now()}_${file.name}`;
       console.log("Caminho do arquivo no Storage:", filePath);
       
       const storageRef = ref(storage, filePath);
-      setUploadProgress(50);
       
-      console.log("Enviando bytes...");
-      const snapshot = await uploadBytes(storageRef, file);
-      console.log("Upload concluído com sucesso!", snapshot.metadata.fullPath);
-      
-      setUploadProgress(80);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      console.log("URL de download obtida:", downloadURL);
-      
-      setUploadProgress(100);
-      setEditForm(prev => ({ ...prev, profile_image: downloadURL }));
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      await new Promise((resolve, reject) => {
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+            setUploadProgress(progress);
+            console.log(`Upload progress: ${progress}%`);
+          }, 
+          (error) => {
+            console.error("Erro no upload task:", error);
+            reject(error);
+          }, 
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              console.log("URL de download obtida:", downloadURL);
+              setEditForm(prev => ({ ...prev, profile_image: downloadURL }));
+              resolve(downloadURL);
+            } catch (err) {
+              reject(err);
+            }
+          }
+        );
+      });
+
+      console.log("Upload concluído com sucesso!");
     } catch (err) {
       console.error("Erro detalhado no upload da imagem:", err);
       let errorMessage = "Erro ao enviar a imagem.";
@@ -257,6 +278,8 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
           errorMessage = "Erro de permissão: Verifique se as Regras do Firebase Storage permitem o upload.";
         } else if (err.message.includes('storage/retry-limit-exceeded')) {
           errorMessage = "Erro de rede: O tempo limite foi excedido. Tente novamente.";
+        } else if (err.message.includes('CORS') || err.message.includes('preflight') || err.message.includes('Failed to load resource')) {
+          errorMessage = "Erro de CORS: Você precisa configurar o CORS no seu bucket do Firebase Storage. Verifique as instruções no chat.";
         } else {
           errorMessage += " Detalhes: " + err.message;
         }
@@ -304,7 +327,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
           )}
         </div>
 
-        <div className="px-8 -mt-16 flex flex-col items-center text-center relative z-10">
+        <div className="px-4 sm:px-8 -mt-16 flex flex-col items-center text-center relative z-10">
           <div className="relative group">
             <UserAvatar 
               user={profileUser} 
@@ -316,10 +339,10 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
             </div>
           </div>
 
-          <div className="mt-6 space-y-2">
-            <h2 className="text-3xl font-display font-black italic tracking-tighter text-white uppercase">{profileUser.name}</h2>
+          <div className="mt-6 space-y-2 w-full max-w-sm">
+            <h2 className="text-2xl sm:text-3xl font-display font-black italic tracking-tighter text-white uppercase truncate px-4">{profileUser.name}</h2>
             <div className="flex flex-col items-center gap-4">
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex flex-wrap items-center justify-center gap-3">
                 <span className="bg-neon-green text-black px-3 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-[0_0_15px_rgba(57,255,20,0.3)]">
                   Nível {profileUser.level}
                 </span>
@@ -329,10 +352,10 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
                 <MapPin className="w-3 h-3 text-neon-green" />
                 {profileUser.city || 'Cidade não definida'}
               </div>
-              <UserCategory userId={profileUser.uid} className="scale-125 px-4 py-2" />
+              <UserCategory userId={profileUser.uid} className="scale-110 sm:scale-125 px-4 py-2" />
             </div>
             {profileUser.bio && (
-              <p className="text-zinc-400 text-sm mt-4 max-w-sm font-medium leading-relaxed">
+              <p className="text-zinc-400 text-sm mt-4 font-medium leading-relaxed px-4">
                 {profileUser.bio}
               </p>
             )}
@@ -341,30 +364,30 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-3 gap-4 px-2">
-        <div className="speed-card p-5 text-center group hover:border-neon-green/30 transition-all neon-card-glow">
-          <div className="text-2xl font-display font-black italic tracking-tighter text-neon-green neon-glow group-hover:scale-110 transition-transform">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 px-2">
+        <div className="speed-card p-4 sm:p-5 text-center group hover:border-neon-green/30 transition-all neon-card-glow">
+          <div className="text-xl sm:text-2xl font-display font-black italic tracking-tighter text-neon-green neon-glow group-hover:scale-110 transition-transform">
             {profileUser.total_km.toFixed(1)}
           </div>
-          <div className="text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-zinc-500 mt-1">KM TOTAIS</div>
+          <div className="text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-zinc-500 mt-1">KM TOTAIS</div>
         </div>
-        <div className="speed-card p-5 text-center group hover:border-vibrant-orange/30 transition-all orange-card-glow">
+        <div className="speed-card p-4 sm:p-5 text-center group hover:border-vibrant-orange/30 transition-all orange-card-glow">
           <div className="flex items-center justify-center gap-1 text-vibrant-orange orange-glow group-hover:scale-110 transition-transform">
-            <Flame className="w-5 h-5 fill-current" />
-            <span className="text-2xl font-display font-black italic tracking-tighter">{profileUser.current_streak}</span>
+            <Flame className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
+            <span className="text-xl sm:text-2xl font-display font-black italic tracking-tighter">{profileUser.current_streak}</span>
           </div>
-          <div className="text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-zinc-500 mt-1">STREAK</div>
+          <div className="text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-zinc-500 mt-1">STREAK</div>
         </div>
-        <div className="speed-card p-5 text-center group hover:border-white/20 transition-all">
-          <div className="text-2xl font-display font-black italic tracking-tighter text-white group-hover:scale-110 transition-transform">
+        <div className="speed-card p-4 sm:p-5 text-center group hover:border-white/20 transition-all col-span-2 sm:col-span-1">
+          <div className="text-xl sm:text-2xl font-display font-black italic tracking-tighter text-white group-hover:scale-110 transition-transform">
             {profileUser.xp_total}
           </div>
-          <div className="text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-zinc-500 mt-1">TOTAL XP</div>
+          <div className="text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-zinc-500 mt-1">TOTAL XP</div>
         </div>
       </div>
 
       {/* XP Progress Bar */}
-      <div className="speed-card p-8 space-y-6 relative overflow-hidden neon-card-glow">
+      <div className="speed-card p-6 sm:p-8 space-y-6 relative overflow-hidden neon-card-glow mx-2">
         <div className="absolute top-0 right-0 p-4 opacity-5">
           <TrendingUp className="w-24 h-24" />
         </div>
@@ -396,7 +419,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
             <Award className="w-5 h-5 text-vibrant-orange" />
             <h3 className="font-display font-black italic text-lg uppercase tracking-tight">Conquistas</h3>
           </div>
-          <button className="text-[10px] font-mono font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors">Ver Todas</button>
+          <button onClick={() => alert("Funcionalidade em desenvolvimento!")} className="text-[10px] font-mono font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors">Ver Todas</button>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
           {medals.length > 0 ? medals.map(medal => (
@@ -427,7 +450,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
             <History className="w-5 h-5 text-neon-green" />
             <h3 className="font-display font-black italic text-lg uppercase tracking-tight">Atividades Recentes</h3>
           </div>
-          <button className="text-[10px] font-mono font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors">Ver Histórico</button>
+          <button onClick={() => alert("Funcionalidade em desenvolvimento!")} className="text-[10px] font-mono font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors">Ver Histórico</button>
         </div>
         <div className="space-y-4">
           {userRuns.length > 0 ? userRuns.slice(0, 5).map(run => (
@@ -485,7 +508,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md bg-speed-black rounded-[2.5rem] border border-white/10 p-8 space-y-8 shadow-2xl"
+              className="relative w-full max-w-md bg-speed-black rounded-[2.5rem] border border-white/10 p-6 sm:p-8 space-y-6 sm:space-y-8 shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -592,47 +615,55 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 w-full">
-                    <label className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-neon-green/50 transition-all cursor-pointer group relative overflow-hidden">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        console.log("Gallery button clicked");
+                        galleryInputRef.current?.click();
+                      }}
+                      disabled={isUploading}
+                      className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-neon-green/50 transition-all cursor-pointer group relative overflow-hidden disabled:opacity-50"
+                    >
                       <input 
+                        ref={galleryInputRef}
+                        id="gallery-upload"
                         type="file" 
                         accept="image/*" 
-                        className="absolute inset-0 opacity-0 cursor-pointer z-10" 
+                        className="hidden" 
                         onChange={handleImageUpload}
-                        disabled={isUploading}
                       />
                       <div className="p-2 bg-white/5 rounded-xl group-hover:bg-neon-green group-hover:text-black transition-all">
                         <Image className="w-5 h-5" />
                       </div>
                       <span className="text-[9px] font-mono font-black uppercase tracking-widest">Galeria</span>
-                    </label>
+                    </button>
 
-                    <label className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-neon-green/50 transition-all cursor-pointer group relative overflow-hidden">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        console.log("Camera button clicked");
+                        cameraInputRef.current?.click();
+                      }}
+                      disabled={isUploading}
+                      className="flex flex-col items-center justify-center gap-2 p-4 bg-zinc-900 border border-white/10 rounded-2xl hover:border-neon-green/50 transition-all cursor-pointer group relative overflow-hidden disabled:opacity-50"
+                    >
                       <input 
+                        ref={cameraInputRef}
+                        id="camera-upload"
                         type="file" 
                         accept="image/*" 
                         capture="user" 
-                        className="absolute inset-0 opacity-0 cursor-pointer z-10" 
+                        className="hidden" 
                         onChange={handleImageUpload}
-                        disabled={isUploading}
                       />
                       <div className="p-2 bg-white/5 rounded-xl group-hover:bg-neon-green group-hover:text-black transition-all">
                         <Camera className="w-5 h-5" />
                       </div>
                       <span className="text-[9px] font-mono font-black uppercase tracking-widest">Câmera</span>
-                    </label>
+                    </button>
                   </div>
                 </div>
-
-                    <div className="space-y-1.5 mt-2">
-                      <label className="text-[9px] font-mono font-bold uppercase tracking-widest text-zinc-600 ml-2">Ou cole a URL da imagem</label>
-                      <input 
-                        value={editForm.profile_image}
-                        onChange={e => setEditForm({...editForm, profile_image: e.target.value})}
-                        className="w-full bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-3 text-[10px] focus:border-neon-green outline-none transition-all font-mono"
-                        placeholder="https://..."
-                      />
-                    </div>
-                  </div>
+              </div>
 
               <button 
                 onClick={handleSave}
