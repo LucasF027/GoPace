@@ -8,7 +8,7 @@ import {
   Award,
   History,
   Grid,
-  Image,
+  Image as ImageIcon,
   X,
   Save,
   TrendingUp,
@@ -17,9 +17,8 @@ import {
   Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getFirebaseStorage, db } from '../firebase';
+import { db } from '../firebase';
 import { doc, updateDoc, collection, query, where, getDocs, orderBy, getDoc } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { UserProfile, Run, Medal } from '../types';
 import { cn, formatDuration, formatPace, calculatePace, safeToDate } from '../utils';
 import { format } from 'date-fns';
@@ -212,6 +211,47 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
     }
   };
 
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400;
+          const MAX_HEIGHT = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Qualidade 0.7 para bom equilíbrio entre tamanho e nitidez
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          resolve(dataUrl);
+        };
+        img.onerror = (err) => reject(new Error("Erro ao carregar imagem para compressão"));
+      };
+      reader.onerror = (err) => reject(new Error("Erro ao ler arquivo"));
+    });
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log("handleImageUpload triggered - Files:", e.target.files?.length);
     const file = e.target.files?.[0];
@@ -220,74 +260,32 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
       return;
     }
 
-    // Basic validation
+    // Validação básica
     if (!file.type.startsWith('image/')) {
       alert('Por favor, selecione um arquivo de imagem válido.');
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('A imagem deve ter no máximo 5MB.');
-      return;
-    }
-
     setIsUploading(true);
-    setUploadProgress(0);
-    console.log("Iniciando upload da imagem...", file.name, file.size, file.type);
+    setUploadProgress(20);
+    console.log("Iniciando processamento da imagem (Base64)...", file.name, file.size);
+    
     try {
-      const storage = getFirebaseStorage();
-      if (!storage) throw new Error("Firebase Storage não inicializado.");
+      // Em vez de enviar para o Storage (que requer plano pago em algumas regiões/configs),
+      // vamos comprimir e converter para Base64 para salvar direto no Firestore.
+      setUploadProgress(50);
+      const compressedBase64 = await compressImage(file);
       
-      const filePath = `profiles/${currentUser.uid}/${Date.now()}_${file.name}`;
-      console.log("Caminho do arquivo no Storage:", filePath);
+      setUploadProgress(100);
+      console.log("Imagem processada com sucesso!");
+      setEditForm(prev => ({ ...prev, profile_image: compressedBase64 }));
       
-      const storageRef = ref(storage, filePath);
-      
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      await new Promise((resolve, reject) => {
-        uploadTask.on('state_changed', 
-          (snapshot) => {
-            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-            setUploadProgress(progress);
-            console.log(`Upload progress: ${progress}%`);
-          }, 
-          (error) => {
-            console.error("Erro no upload task:", error);
-            reject(error);
-          }, 
-          async () => {
-            try {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              console.log("URL de download obtida:", downloadURL);
-              setEditForm(prev => ({ ...prev, profile_image: downloadURL }));
-              resolve(downloadURL);
-            } catch (err) {
-              reject(err);
-            }
-          }
-        );
-      });
-
-      console.log("Upload concluído com sucesso!");
     } catch (err) {
-      console.error("Erro detalhado no upload da imagem:", err);
-      let errorMessage = "Erro ao enviar a imagem.";
-      if (err instanceof Error) {
-        if (err.message.includes('storage/unauthorized')) {
-          errorMessage = "Erro de permissão: Verifique se as Regras do Firebase Storage permitem o upload.";
-        } else if (err.message.includes('storage/retry-limit-exceeded')) {
-          errorMessage = "Erro de rede: O tempo limite foi excedido. Tente novamente.";
-        } else if (err.message.includes('CORS') || err.message.includes('preflight') || err.message.includes('Failed to load resource')) {
-          errorMessage = "Erro de CORS: Você precisa configurar o CORS no seu bucket do Firebase Storage. Verifique as instruções no chat.";
-        } else {
-          errorMessage += " Detalhes: " + err.message;
-        }
-      }
-      alert(errorMessage);
+      console.error("Erro no processamento da imagem:", err);
+      alert("Erro ao processar a imagem. Tente uma foto menor ou outro formato.");
     } finally {
       setIsUploading(false);
-      setUploadProgress(0);
+      setTimeout(() => setUploadProgress(0), 500);
       e.target.value = '';
     }
   };
@@ -633,7 +631,7 @@ export default function Profile({ user: currentUser, targetUserId, onBack }: Pro
                         onChange={handleImageUpload}
                       />
                       <div className="p-2 bg-white/5 rounded-xl group-hover:bg-neon-green group-hover:text-black transition-all">
-                        <Image className="w-5 h-5" />
+                        <ImageIcon className="w-5 h-5" />
                       </div>
                       <span className="text-[9px] font-mono font-black uppercase tracking-widest">Galeria</span>
                     </button>
